@@ -152,12 +152,14 @@ class BaseSoC(SoCCore):
         platform = orangecrab.Platform(revision=revision, device=device ,toolchain=toolchain)
 
 
-        kwargs['uart_name'] = 'stream'
+        #kwargs['uart_name'] = 'stream'
+        kwargs["uart_name"] = "usb_acm"
+        
         # SoCCore ----------------------------------------------------------------------------------
         SoCCore.__init__(self, platform, sys_clk_freq,
             ident          = "LiteX RPC Test SoC (OrangeCrab)",
             ident_version  = True,
-            cpu_type       = None,
+            #cpu_type       = None,
             **kwargs)
 
         # CRG --------------------------------------------------------------------------------------
@@ -191,14 +193,16 @@ class BaseSoC(SoCCore):
                 pads         = platform.request_all("user_led"),
                 sys_clk_freq = sys_clk_freq)
 
+        
         # Wishbone Bridge through DummyUsb ---------------------------------------------------------
-        import valentyusb.usbcore.io as usbio
-        from valentyusb.usbcore.cpu.dummyusb import DummyUsb
+        if False:
+            import valentyusb.usbcore.io as usbio
+            from valentyusb.usbcore.cpu.dummyusb import DummyUsb
 
-        usb_pads = self.platform.request("usb")
-        usb_iobuf = usbio.IoBuf(usb_pads.d_p, usb_pads.d_n, usb_pads.pullup)
-        self.submodules.bridge = (DummyUsb(usb_iobuf, debug=True, cdc=True, product="wishbone-bridge", manufacturer="GsD", pid=0x5af0))
-        self.bus.add_master(name="bridge", master=self.bridge.debug_bridge.wishbone)
+            usb_pads = self.platform.request("usb")
+            usb_iobuf = usbio.IoBuf(usb_pads.d_p, usb_pads.d_n, usb_pads.pullup)
+            self.submodules.bridge = (DummyUsb(usb_iobuf, debug=True, cdc=True, product="wishbone-bridge", manufacturer="GsD", pid=0x5af0))
+            self.bus.add_master(name="bridge", master=self.bridge.debug_bridge.wishbone)
 
 
 # Build --------------------------------------------------------------------------------------------
