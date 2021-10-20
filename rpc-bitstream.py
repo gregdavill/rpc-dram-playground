@@ -15,7 +15,6 @@ from migen import *
 from migen.genlib.misc import WaitTimer
 from migen.genlib.resetsync import AsyncResetSynchronizer
 
-from litex_boards.platforms import orangecrab
 
 from litex.build.lattice.trellis import trellis_args, trellis_argdict
 
@@ -25,7 +24,9 @@ from litex.soc.integration.builder import *
 from litex.soc.cores.led import LedChaser
 
 from litedram.modules import EM6GA16L
-from litedram.phy import ECP5DDRPHY
+
+from ecp5phy import ECP5RPCPHY, ECP5RPCPads
+import gsd_orangecrab as orangecrab 
 
 # CRG ---------------------------------------------------------------------------------------------
 
@@ -152,14 +153,15 @@ class BaseSoC(SoCCore):
         platform = orangecrab.Platform(revision=revision, device=device ,toolchain=toolchain)
 
 
-        #kwargs['uart_name'] = 'stream'
-        kwargs["uart_name"] = "usb_acm"
-        
+        kwargs['uart_name'] = 'stream'
+        if kwargs["uart_name"] != "usb_acm":
+            kwargs['cpu_type'] = None
+        # kwargs["uart_name"] = "usb_acm"
+
         # SoCCore ----------------------------------------------------------------------------------
         SoCCore.__init__(self, platform, sys_clk_freq,
             ident          = "LiteX RPC Test SoC (OrangeCrab)",
             ident_version  = True,
-            #cpu_type       = None,
             **kwargs)
 
         # CRG --------------------------------------------------------------------------------------
@@ -167,11 +169,11 @@ class BaseSoC(SoCCore):
         self.submodules.crg = crg_cls(platform, sys_clk_freq, with_usb_pll=True)
 
         # RPC-DRAM ---------------------------------------------------------------------------------
-        ddram_pads = platform.request("ddram")
-        self.submodules.ddrphy = ECP5DDRPHY(
-            pads         = ddram_pads,
+        ddram_pads = platform.request("rpc_dram")
+        self.submodules.ddrphy = ECP5RPCPHY(
+            pads         = ECP5RPCPads(ddram_pads),
             sys_clk_freq = sys_clk_freq,
-            cmd_delay    = 0 if sys_clk_freq > 64e6 else 100)
+            )
         self.ddrphy.settings.rtt_nom = "disabled"
 
 
@@ -195,7 +197,7 @@ class BaseSoC(SoCCore):
 
         
         # Wishbone Bridge through DummyUsb ---------------------------------------------------------
-        if False:
+        if kwargs["uart_name"] != "usb_acm":
             import valentyusb.usbcore.io as usbio
             from valentyusb.usbcore.cpu.dummyusb import DummyUsb
 
