@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 
-#
-# This file is part of LiteX-Boards.
-#
 # Copyright (c) Greg Davill <greg.davill@gmail.com>
 # SPDX-License-Identifier: BSD-2-Clause
 
 import os
 import sys
 import argparse
+
+# Prepend our local deps
+sys.path.insert(1, "deps/valentyusb")
+sys.path.insert(1, "deps/litedram")
 
 from migen import *
 from migen.genlib.misc import WaitTimer
@@ -23,7 +24,7 @@ from litex.soc.integration.soc_core import *
 from litex.soc.integration.builder import *
 from litex.soc.cores.led import LedChaser
 
-from litedram.modules import MT41K64M16, MT41K128M16, MT41K256M16, MT41K512M16
+from litedram.modules import EM6GA16L
 from litedram.phy import ECP5DDRPHY
 
 # CRG ---------------------------------------------------------------------------------------------
@@ -163,33 +164,26 @@ class BaseSoC(SoCCore):
         crg_cls = _CRGSDRAM if not self.integrated_main_ram_size else _CRG
         self.submodules.crg = crg_cls(platform, sys_clk_freq, with_usb_pll=True)
 
-        # DDR3 SDRAM -------------------------------------------------------------------------------
-        if not self.integrated_main_ram_size:
-            available_sdram_modules = {
-                "MT41K64M16":  MT41K64M16,
-                "MT41K128M16": MT41K128M16,
-                "MT41K256M16": MT41K256M16,
-                "MT41K512M16": MT41K512M16,
-            }
-            sdram_module = available_sdram_modules.get(sdram_device)
+        # RPC-DRAM ---------------------------------------------------------------------------------
+        ddram_pads = platform.request("ddram")
+        self.submodules.ddrphy = ECP5DDRPHY(
+            pads         = ddram_pads,
+            sys_clk_freq = sys_clk_freq,
+            cmd_delay    = 0 if sys_clk_freq > 64e6 else 100)
+        self.ddrphy.settings.rtt_nom = "disabled"
 
-            ddram_pads = platform.request("ddram")
-            self.submodules.ddrphy = ECP5DDRPHY(
-                pads         = ddram_pads,
-                sys_clk_freq = sys_clk_freq,
-                cmd_delay    = 0 if sys_clk_freq > 64e6 else 100)
-            self.ddrphy.settings.rtt_nom = "disabled"
-            if hasattr(ddram_pads, "vccio"):
-                self.comb += ddram_pads.vccio.eq(Replicate(1,len(ddram_pads.vccio)))
-            if hasattr(ddram_pads, "gnd"):
-                self.comb += ddram_pads.gnd.eq(0)
-            self.comb += self.crg.stop.eq(self.ddrphy.init.stop)
-            self.comb += self.crg.reset.eq(self.ddrphy.init.reset)
-            self.add_sdram("sdram",
-                phy           = self.ddrphy,
-                module        = sdram_module(sys_clk_freq, "1:2"),
-                l2_cache_size = kwargs.get("l2_size", 8192)
-            )
+
+        if hasattr(ddram_pads, "vccio"):
+            self.comb += ddram_pads.vccio.eq(Replicate(1,len(ddram_pads.vccio)))
+        if hasattr(ddram_pads, "gnd"):
+            self.comb += ddram_pads.gnd.eq(0)
+        self.comb += self.crg.stop.eq(self.ddrphy.init.stop)
+        self.comb += self.crg.reset.eq(self.ddrphy.init.reset)
+        self.add_sdram("sdram",
+            phy           = self.ddrphy,
+            module        = EM6GA16L(sys_clk_freq, "1:2"),
+            l2_cache_size = kwargs.get("l2_size", 8192)
+        )
 
         # Leds -------------------------------------------------------------------------------------
         if with_led_chaser:
@@ -198,7 +192,6 @@ class BaseSoC(SoCCore):
                 sys_clk_freq = sys_clk_freq)
 
         # Wishbone Bridge through DummyUsb ---------------------------------------------------------
-        sys.path.append("deps/valentyusb")
         import valentyusb.usbcore.io as usbio
         from valentyusb.usbcore.cpu.dummyusb import DummyUsb
 

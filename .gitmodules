@@ -1,3 +1,6 @@
 [submodule "deps/valentyusb"]
 	path = deps/valentyusb
 	url = https://github.com/litex-hub/valentyusb
+[submodule "deps/litedram"]
+	path = deps/litedram
+	url = https://github.com/enjoy-digital/litedram.git
